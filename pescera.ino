@@ -1,6 +1,13 @@
-#include "Wire.h"
-#include <TM1637Display.h>
-#include <solarcalc.h>
+//Arduino Statements
+  //#include "Wire.h"
+  //#include <TM1637Display.h>
+  //#include <solarcalc.h>
+
+//Spark Core Statements
+#include "TM1637Display/TM1637Display.h"
+#include "solarcalc/solarcalc.h"
+#include "math.h"
+
 #define DS3231_I2C_ADDRESS 0x68
 
 const int PinCLK 	= 2;
@@ -81,44 +88,22 @@ byte bcdToDec(byte val) {
 }
 
 
-void FadeInWhite() {
+void FadeIn(int pin) {
   if (FadeValueWhiteLed < 255) {// fade in from min to max in increments of 5 points:
     for (FadeValueWhiteLed = 0; FadeValueWhiteLed <= 255; FadeValueWhiteLed += 1) {
       // sets the value (range from 0 to 255):
-      analogWrite(PinFadeWhiteLed, FadeValueWhiteLed);
+      analogWrite(pin, FadeValueWhiteLed);
       // wait for 10 milliseconds to see the dimming effect
       delay(10);
     }
   }
 }
 
-void FadeInBlue() {
-  if (FadeValueBlueLed < 255) {// fade in from min to max in increments of 5 points:
-    for (FadeValueBlueLed = 0; FadeValueBlueLed <= 255; FadeValueBlueLed += 1) {
-      // sets the value (range from 0 to 255):
-      analogWrite(PinFadeBlueLed, FadeValueBlueLed);
-      // wait for 10 milliseconds to see the dimming effect
-      delay(10);
-    }
-  }
-}
-
-void FadeOutWhite() {
+void FadeOut(int pin) {
   if (FadeValueWhiteLed > 0) { // fade out from max to min in increments of 5 points:
     for (FadeValueWhiteLed = 255; FadeValueWhiteLed >= 0; FadeValueWhiteLed -= 1) {
       // sets the value (range from 0 to 255):
-      analogWrite(PinFadeWhiteLed, FadeValueWhiteLed);
-      // wait for 10 milliseconds to see the dimming effect
-      delay(10);
-    }
-  }
-}
-
-void FadeOutBlue() {
-  if (FadeValueBlueLed > 0) { // fade out from max to min in increments of 5 points:
-    for (FadeValueBlueLed = 255; FadeValueBlueLed >= 0; FadeValueBlueLed -= 1) {
-      // sets the value (range from 0 to 255):
-      analogWrite(PinFadeBlueLed, FadeValueBlueLed);
+      analogWrite(pin, FadeValueWhiteLed);
       // wait for 10 milliseconds to see the dimming effect
       delay(10);
     }
@@ -226,8 +211,8 @@ void loop() {
       if ((wLed == true) && (bLed == false)) {
         digitalWrite(PinWhiteLed, !wLed);
         digitalWrite(PinBlueLed, !bLed);
-        FadeInWhite();
-        FadeOutBlue();
+        FadeIn(PinFadeWhiteLed);
+        FadeOut(FadeValueBlueLed);
       }
 
       // turn on blue led and turn off white led (motion sensor dependant)
@@ -239,8 +224,8 @@ void loop() {
         if (sensor_triggered == HIGH) {
           digitalWrite(PinBlueLed, bLed);
           digitalWrite(PinWhiteLed, wLed);
-          FadeInWhite();
-          FadeOutBlue();
+          FadeIn(PinFadeWhiteLed);
+          FadeOut(FadeValueBlueLed);
           count++;
           if (count > sensor_timeoff) {
             count = 0;
@@ -250,8 +235,8 @@ void loop() {
         else {
           digitalWrite(PinWhiteLed, !wLed);
           digitalWrite(PinBlueLed, !bLed);
-          FadeInBlue();
-          FadeOutWhite();
+          FadeIn(FadeValueBlueLed);
+          FadeOut(PinFadeWhiteLed);
         }
       }
 
@@ -259,8 +244,8 @@ void loop() {
       if ((wLed == false) && (bLed == false)) {
         digitalWrite(PinWhiteLed, !wLed);
         digitalWrite(PinBlueLed, !bLed);
-        FadeOutBlue();
-        FadeOutWhite();
+        FadeOut(FadeValueBlueLed);
+        FadeOut(PinFadeWhiteLed);
       }
       digitalWrite(PinAutoLed, HIGH);
       break;
@@ -268,24 +253,24 @@ void loop() {
       // White Light on
       digitalWrite(PinWhiteLed, LOW);
       digitalWrite(PinBlueLed, HIGH);
-      FadeInWhite();
-      FadeOutBlue();
+      FadeIn(PinFadeWhiteLed);
+      FadeOut(FadeValueBlueLed);
       digitalWrite(PinAutoLed, LOW);
       break;
     case 2:
       // Blue Light on
       digitalWrite(PinWhiteLed, HIGH);
       digitalWrite(PinBlueLed, LOW);
-      FadeInBlue();
-      FadeOutWhite();
+      FadeIn(FadeValueBlueLed);
+      FadeOut(PinFadeWhiteLed);
       digitalWrite(PinAutoLed, LOW);
       break;
     case 3:
       // Non state selected
       digitalWrite(PinWhiteLed, HIGH);
       digitalWrite(PinBlueLed, HIGH);
-      FadeOutBlue();
-      FadeOutWhite();
+      FadeOut(FadeValueBlueLed);
+      FadeOut(PinFadeWhiteLed);
       AutoLedState = !AutoLedState;
       digitalWrite(PinAutoLed, AutoLedState);
       count = 0;

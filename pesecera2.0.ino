@@ -18,6 +18,7 @@ float latitude = -34.9290;
 float longitude = 138.6010;
 float zenith = 90.833;
 float timezone = 9.5;
+float current_time;
 
 int buttonState = 0;        // current state of the button
 int lastButtonState = 0;
@@ -41,8 +42,7 @@ TM1637Display display(PinCLK, PinDIO);
 
 solarcalc solardata(latitude, longitude, zenith, timezone);
 
-// Convert time to a fraction number
-float fractionTime(byte hour, byte minutes) {
+float fractionTime(int hour, int minutes) {
   float result;
   result = float(hour) + (float(minutes) / 60);
   return result;
@@ -69,7 +69,6 @@ boolean LedControl(float time, float time_on, float time_off) {
   }
   return result;
 }
-
 
 void FadeIn(int pin) {
   if (FadeValueWhiteLed < 255) {// fade in from min to max in increments of 5 points:
@@ -102,8 +101,8 @@ void setup() {
   pinMode(PinSensorLed, OUTPUT);
 
   Serial.begin(9600);
-	Spark.syncTime();
-	Time.zone(timezone);
+  Spark.syncTime();
+  Time.zone(timezone);
 
   FadeValueBlueLed = 0;
   FadeValueWhiteLed = 0;
@@ -111,19 +110,11 @@ void setup() {
 
 void loop() {
 
+  current_time=fractionTime(Time.hour(), Time.second());
+  
   // calculate sunrise sunset and current time
-  solardata.time(Time.year(), Time.month(), Time.day(), Time.hour(), Time.minute(), Time.second());
+  solardata.time(Time.year(), Time.month(), Time.day(), Time.hour(), Time.second(), Time.second());
   solardata.calculations();
-  Serial.println("-----------------------");
-  Serial.println(solardata.current_time());
-  Serial.println(solardata.julian_date());
-  Serial.println(solardata.solar_noon());
-  Serial.println(solardata.sunrise_time());
-  Serial.println(solardata.sunset_time());
-  Serial.println(solardata.equation_of_time());
-  Serial.println(solardata.solar_elevation_atm());
-  Serial.println(solardata.solar_declination());
-  Serial.println(solardata.solar_elevation_angle());
 
   // display current time in TM1637Display
   display.setBrightness(0x0a);
@@ -144,14 +135,13 @@ void loop() {
     }
   }
   lastButtonState = buttonState;
-
   sensorState = digitalRead(PinSensor);
   digitalWrite(PinSensorLed, sensorState);
 
   switch (buttonFunction) {
     case 0:
-      wLed = LedControl(solardata.current_time(), solardata.sunset_time(), midnight);
-      bLed = LedControl(solardata.current_time(), midnight, solardata.sunrise_time());
+      wLed = LedControl(current_time(), solardata.sunset_time(), midnight);
+      bLed = LedControl(current_time(), midnight, solardata.sunrise_time());
 
       // turn on white led and turn off blue led
       if ((wLed == true) && (bLed == false)) {

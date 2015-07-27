@@ -25,7 +25,7 @@
   int buttonState = 0;        // current state of the button
   int lastButtonState = 0;
   int buttonFunction;
-  int AutoLedState;  
+  int AutoLedState;
   boolean wLed, bLed;
   byte midnight = 22;
   
@@ -33,6 +33,8 @@
   bool sensor_triggered = false;
   int count = 0;
   int sensor_timeoff = 60;
+  
+  int ShowColon;
   
   byte segto;
   byte hour00, hour01;
@@ -65,13 +67,21 @@
   
   void displaytime() {
 	// display current time in TM1637Display
+
     display.setBrightness(0x0a);
     hour00 = floor(Time.hour() / 10);
     display.showNumberDec(hour00, true, 1, 0);
     hour01 = floor(Time.hour() % 10);
+    ShowColon=!ShowColon;
+    if (ShowColon=0) {
+    segto = 0x00 | display.encodeDigit(hour01);
+    }
+    else {
     segto = 0x80  | display.encodeDigit(hour01);
+    }
     display.setSegments(&segto, 1, 1);
-    display.showNumberDec(Time.minute(), true, 2, 2);  
+    display.showNumberDec(Time.minute(), true, 2, 2);
+    
   }
   
 void FadeInWhite() {
@@ -131,8 +141,34 @@ void FadeOutBlue() {
     }
   }
 }
+
+int lightcmd(String command) {
+    
+    if (command=="0") {
+        buttonFunction=0;
+        return 0;
+    }
+    else if (command=="1") {
+        buttonFunction=1;
+        return 1;
+    }
+    else if (command=="2") {
+        buttonFunction=2;
+        return 2;
+    }
+    else if (command=="3") {
+        buttonFunction=3;
+        return 3;
+    }
+    else {
+        return -1;
+    }
+}
  
   void setup() {
+
+        Spark.variable("lightstate",&buttonFunction,INT);
+        Spark.function("lightcmd",lightcmd);
 
         pinMode(PinWhiteLed, OUTPUT);
         pinMode(PinBlueLed, OUTPUT);
@@ -140,7 +176,9 @@ void FadeOutBlue() {
         pinMode(PinSwitch, INPUT);
         pinMode(PinSensor, INPUT);
         pinMode(PinSensorLed, OUTPUT);
+        
 		Serial.begin(9600);
+		
 		Spark.syncTime();
 		Time.zone(timezone);
 		
@@ -190,6 +228,7 @@ void FadeOutBlue() {
         if (sensorState == HIGH) {
           sensor_triggered = HIGH;
           count = 0;
+          Spark.publish("Sensor","ON",60,PRIVATE);
         }
         if (sensor_triggered == HIGH) {
           FadeInWhite();

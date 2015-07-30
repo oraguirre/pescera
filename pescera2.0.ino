@@ -1,23 +1,34 @@
 // This #include statement was automatically added by the Spark IDE.
+#include "Adafruit_DHT/Adafruit_DHT.h"
 #include "TM1637Display/TM1637Display.h"
 #include "solarcalc/solarcalc.h"
 #include "math.h"
+
+  #define DHTTYPE DHT22
   
   float latitude = -34.9290;
   float longitude = 138.6010;
   float zenith = 90.833;
   float timezone = 9.5;
+  float humidity;
+  float temperature;
+  
+  String myCharhumid;
+  String myChartemp;
   //int brightness=0;
 
   const int PinAutoLed 	    =   D0;
   const int PinSensor	    =   D1;
   const int PinDIO 	        =   D2;
   const int PinCLK 	        =   D3;
+  const int PinDHT          =   D4;
   const int PinSwitch 	    =   D6; 
-  const int PinSensorLed    =   D7; 
+  const int PinSensorLed    =   D7;
 
   const int PinWhiteLed 	=   A0;
   const int PinBlueLed 	    =   A1;
+  
+  const int delayTime       =   2000;
   
   int brightnessW;
   int brightnessB;
@@ -34,14 +45,17 @@
   int count = 0;
   int sensor_timeoff = 60;
   
-  int ShowColon;
+  int DisplayScroll;
+  int publishcount;
   
   byte segto;
-  byte hour00, hour01;
+  byte Digit0, Digit1, Digit2, Digit3;
  
   solarcalc solardata(latitude, longitude, zenith, timezone);
  
   TM1637Display display(PinCLK, PinDIO);
+  
+  DHT dht(PinDHT, DHTTYPE);
   
   // Turn on or off led using time limits
   boolean LedControl(float time, float time_on, float time_off) {
@@ -64,25 +78,82 @@
   }
   return result;
 }
+//*****************************************
+//  Display
+//*****************************************
   
-  void displaytime() {
-	// display current time in TM1637Display
-
+  void displaysegments() {
+	// Set Brightness
     display.setBrightness(0x0a);
-    hour00 = floor(Time.hour() / 10);
-    display.showNumberDec(hour00, true, 1, 0);
-    hour01 = floor(Time.hour() % 10);
-    ShowColon=!ShowColon;
-    if (ShowColon=0) {
-    segto = 0x00 | display.encodeDigit(hour01);
+
+    // XGFEDCBA
+    //0b00111111,    // 0
+    
+    //      A
+    //     ---
+    //  F |   | B
+    //     -G-
+    //  E |   | C
+    //     ---
+    //      D
+
+    switch (DisplayScroll) {
+      case 0:    
+        // Get Time
+        Digit0 = floor(Time.hour() / 10);
+        Digit1 = floor(Time.hour() % 10);
+        Digit2 = floor(Time.minute() / 10);
+        Digit3 = floor(Time.minute() % 10);
+        break;
+      case 1:
+        // Get Temperature
+        Digit0 = floor(int(temperature) / 10);
+        Digit1 = floor(int(temperature) % 10);
+        Digit2 = 0b01100011; //degrees
+        Digit3 = 0b00111001; // C
+        break;
+      case 2:
+        // Get Humidity
+        Digit0 = floor(int(humidity) / 10);
+        Digit1 = floor(int(humidity) % 10);
+        Digit2 = 0b01100011; //degrees
+        Digit3 = 0b01011100; // o
+        break;
+      default:
+        Digit0 = 0b01000000; // -
+        Digit1 = 0b01000000; // -
+        Digit2 = 0b01000000; // -
+        Digit3 = 0b01000000; // -
+        break;
+    }
+    
+    // Set digit 0 
+    display.showNumberDec(Digit0, true, 1, 0);    
+
+    if (DisplayScroll>0) {
+      display.showNumberDec(Digit1, true, 1, 1);
+      //Set Digit 2
+      display.setSegments(&Digit2, 1, 2);
+      //Set Digit 3
+      display.setSegments(&Digit3, 1, 3);        
     }
     else {
-    segto = 0x80  | display.encodeDigit(hour01);
+      //Set digit 1
+      segto = 0x80  | display.encodeDigit(Digit1);
+      display.setSegments(&segto, 1, 1);
+      //Set Digit 2
+      display.showNumberDec(Digit2, true, 1, 2);
+      //Set Digit 3
+      display.showNumberDec(Digit3, true, 1, 3);
     }
-    display.setSegments(&segto, 1, 1);
-    display.showNumberDec(Time.minute(), true, 2, 2);
-    
+    // Go to next case
+    DisplayScroll++;
+    if (DisplayScroll>2) {
+      DisplayScroll=0;
+    }
   }
+
+
   
 void FadeInWhite() {
   if (brightnessW < 255) {// fade in from min to max in increments of 5 points:
@@ -164,6 +235,10 @@ int lightcmd(String command) {
         return -1;
     }
 }
+
+//*****************************************
+// SETUP
+//*****************************************
  
   void setup() {
 
@@ -178,7 +253,8 @@ int lightcmd(String command) {
         pinMode(PinSensorLed, OUTPUT);
         
 		Serial.begin(9600);
-		
+        dht.begin();
+        
 		Spark.syncTime();
 		Time.zone(timezone);
 		
@@ -191,22 +267,43 @@ int lightcmd(String command) {
         FadeOutBlue();
         delay(500);
 		brightnessW = 0;
-        brightnessB = 0;        
-        
+        brightnessB = 0;
   }
+  
+//*****************************************
+// LOOP
+//*****************************************  
+  
   void loop() { 
-	  solardata.time(Time.year(), Time.month(), Time.day(), Time.hour(), Time.minute(), Time.second());
-	  solardata.calculations();
-      displaytime();
-  buttonState = digitalRead(PinSwitch);
-  if (buttonState != lastButtonState) {
+
+	solardata.time(Time.year(), Time.month(), Time.day(), Time.hour(), Time.minute(), Time.second());
+	solardata.calculations();
+
+ 	humidity = dht.getHumidity();
+	temperature = dht.getTempCelcius();
+
+    //publish every 10 seconds
+    if (publishcount > 30) {
+ 	  Spark.publish("humidity",String(int(humidity)),60,PRIVATE); 
+	  Spark.publish("temperature",String(int(temperature)),60,PRIVATE);
+	  publishcount=0;
+    }
+    publishcount++;
+    
+    delay(delayTime);
+    
+    displaysegments();
+    
+    buttonState = digitalRead(PinSwitch);
+    if (buttonState != lastButtonState) {
     if (buttonState == HIGH) {
       buttonFunction++;
-      if (buttonFunction > 3) {
+    if (buttonFunction > 3) {
         buttonFunction = 0;
+          }
+        }
       }
-    }
-  }
+      
   lastButtonState = buttonState;
 
   sensorState = digitalRead(PinSensor);
@@ -278,6 +375,4 @@ int lightcmd(String command) {
       analogWrite(PinWhiteLed, 0);
       analogWrite(PinBlueLed, 0);
   }
-  
-  delay(1000);
 }
